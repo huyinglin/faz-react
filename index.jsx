@@ -1,6 +1,7 @@
 
+/* ================================= Step 0 ================================= */
 
-const element = <h1 title="foo">Hello</h1>
+// const element = <h1 title="foo">Hello</h1>;
 
 // const element = {
 //   type: "h1",
@@ -10,43 +11,94 @@ const element = <h1 title="foo">Hello</h1>
 //   },
 // }
 
+/* =================== Step I: The createElement Function =================== */
+
+const element = (
+  <div id="foo">
+    <a>bar</a>
+    <br />
+    2323
+  </div>
+);
+
+// const element = createElement(
+//   'div',
+//   { id: 'foo' },
+//   createElement('a', null, 'bar'),
+//   createElement('a', null, []),
+// );
+
+// const element = {
+//   type: 'div',
+//   props: {
+//     id: 'foo',
+//     children: [
+//       {
+//         type: 'a',
+//         props: {
+//           children: ['bar'],
+//         },
+//       },
+//       {
+//         type: 'br',
+//         props: {
+//           children: [],
+//         },
+//       },
+//     ],
+//   },
+// };
+
+/* ====================== Step II: The render Function ====================== */
+
+/* ============================== createElement ============================= */
 
 function createElement(type, props, ...children) {
 
   // console.log('type: ', type);
   // console.log('props: ', props);
   // console.log('children: ', children);
-
   const element = {
     type,
     props: {
       ...props,
-      children,
+      children: children.map(child => typeof child === 'object' ? child : createTextElement(child)),
     }
-  }
+  };
   console.log('element: ', element);
 
-  const node = document.createElement(element.type);
+  return element;
+}
 
-  const text = document.createTextNode('');
+function createTextElement(text) {
+  return {
+    type: 'TEXT_ELEMENT',
+    props: {
+      nodeValue: text,
+      children: [],
+    },
+  };
+}
 
-  for (let prop in element.props) {
-    node[prop] = element.props[prop];
-  }
+function render(element, container) {
+  const dom = element.type === 'TEXT_ELEMENT'
+    ? document.createTextNode('')
+    : document.createElement(element.type);
 
-  children.forEach((child, index) => {
-    if (!child) {
-      return;
-    }
-    if (typeof child === 'string') {
-      text['nodeValue'] = child;
-    }
-  });
+  element.props.children
+    .forEach(child => render(child, dom));
 
-  const container = document.getElementById('root');
+  Object.keys(element.props)
+    .forEach(name => name !== 'children' && (dom[name] = element.props[name]));
 
-  node.appendChild(text);
-
-  container.appendChild(node);
+  container.appendChild(dom);
 
 }
+
+const FazReact = {
+  createElement,
+  render,
+};
+
+const container = document.getElementById("root");
+FazReact.render(element, container);
