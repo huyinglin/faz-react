@@ -1,17 +1,17 @@
 const path = require('path');
 
 module.exports = {
-  entry: './main.js',
+  entry: './index.jsx',
   mode: 'development',
   module: {
     rules: [
       {
-        test: /\.js$/,
+        test: /\.jsx?$/,
         use: {
           loader: 'babel-loader',
           options: {
             presets: ['@babel/preset-env'],
-            plugins: [['@babel/plugin-transform-react-jsx', { pragma: 'create' }]],
+            plugins: [['@babel/plugin-transform-react-jsx', { pragma: 'createElement' }]],
           }
         }
       }

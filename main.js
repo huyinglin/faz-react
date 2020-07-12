@@ -108,7 +108,7 @@ component.mountTo(document.getElementById('root'));
 
 console.log('component: ', component);
 
-function create(Cls, attributes, ...children) {
+function createElement(Cls, attributes, ...children) {
   let o;
   if (typeof Cls === 'string') {
     o = new Wrapper(Cls);
