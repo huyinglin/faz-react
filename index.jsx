@@ -21,7 +21,6 @@ const EffectTag = {
 };
 
 function createElement(type, props, ...children) {
-  console.log('type, props, ...children: ', type, props, children);
   const isObject = (value) => typeof value === "object" && value !== null;
 
   const element = {
