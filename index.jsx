@@ -197,9 +197,48 @@ function performUnitOfWork(fiber) {
   }
 }
 
+let wipFiber = null;
+let hookIndex = null;
+
 function updateFunctionComponent(fiber) {
+  wipFiber = fiber;
+  hookIndex = 0;
+  wipFiber.hooks = [];
   const children = [fiber.type(fiber.props)];
   reconcileChildren(fiber, children);
+}
+
+function useState(initial) {
+  const oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex];
+
+  const initialValue = typeof initial === 'function' ? initial() : initial;
+  const hook = {
+    state: oldHook ? oldHook.state : initialValue,
+    queue: [],
+  };
+
+  const actions = oldHook ? oldHook.queue : [];
+  actions.forEach(action => {
+    hook.state = typeof action === 'function' ? action(hook.state) : action;
+  });
+
+  const setState = action => {
+    hook.queue.push(action);
+
+    // 我们执行与render函数中类似的操作，将新的进行中的工作根设置为下一个工作单元，以便工作循环可以开始新的渲染阶段。
+    wipRoot = {
+      dom: currentRoot.dom,
+      props: currentRoot.props,
+      alternate: currentRoot,
+    };
+    nextUnitOfWork = wipRoot;
+    deletions = [];
+  }
+
+  wipFiber.hooks.push(hook);
+  hookIndex++;
+
+  return [hook.state, setState]
 }
 
 function updateHostComponent(fiber) {
@@ -261,9 +300,10 @@ function reconcileChildren(wipFiber, childrens) {
   }
 }
 
-const Didact = {
+const FazReact = {
   createElement,
   render,
+  useState,
 };
 
 const container = document.getElementById("root");
@@ -282,18 +322,39 @@ const container = document.getElementById("root");
 //       ))} */}
 //     </div>
 //   );
-//   Didact.render(element, container);
+//   FazReact.render(element, container);
 // };
 
 // rerender("World");
 
-function Home(props) {
-  return <div>This Home {props.name}</div>;
-}
+// function Home(props) {
+//   return <div>This Home {props.name}</div>;
+// }
 
-function App(props) {
-  return <h1>Hi {props.name} <Home name="ll"/></h1>;
-}
-const element = <App name="foo" />
+// function App(props) {
+//   return <h1>Hi {props.name} <Home name="ll"/><Home name="ll"/></h1>;
+// }
+// const element = <App name="foo" />
 
-Didact.render(element, container);
+function Counter() {
+  const [state, setState] = FazReact.useState(1);
+  const [value, setValue] = FazReact.useState(0);
+
+  function onClick() {
+    setState(state + 1);
+    setValue(state * 2);
+  }
+
+  return (
+    <div>
+      <button onClick={onClick}>click</button>
+      <h1>
+        Count: {state}
+        Value: {value}
+      </h1>
+    </div>
+  )
+}
+const element = <Counter />
+
+FazReact.render(element, container);
