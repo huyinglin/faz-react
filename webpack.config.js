@@ -1,6 +1,7 @@
 const path = require('path');
 
 module.exports = {
+  // entry: './faz-react.jsx',
   entry: './index.jsx',
   mode: 'development',
   module: {
@@ -11,6 +12,7 @@ module.exports = {
           loader: 'babel-loader',
           options: {
             presets: ['@babel/preset-env'],
+            // plugins: [['@babel/plugin-transform-react-jsx', { pragma: 'FazReact.createElement' }]],
             plugins: [['@babel/plugin-transform-react-jsx', { pragma: 'Didact.createElement' }]],
           }
         }

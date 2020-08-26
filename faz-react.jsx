@@ -54,11 +54,16 @@ function createElement(type, props, ...children) {
   // console.log('type: ', type);
   // console.log('props: ', props);
   // console.log('children: ', children);
+
+  // 为了避免混淆，我将使用“ element”来指代React元素，并使用“ node”来指代DOM元素。
+
+  const isObject = value => typeof value === 'object' && value !== null;
+
   const element = {
     type,
     props: {
       ...props,
-      children: children.map(child => typeof child === 'object' ? child : createTextElement(child)),
+      children: children.map(child => isObject(child) ? child : createTextElement(child)),
     }
   };
   console.log('element: ', element);
@@ -77,12 +82,13 @@ function createTextElement(text) {
 }
 
 const isEvent = key => key.startsWith('on'); // 处理原生事件
-const isProperty = key => key !== 'children' && !isEvent(key);
+const isProperty = key => key !== 'children' && !isEvent(key); // 处理属性
 const isNew = (prev, next) => key => prev[key] !== next[key];
 const isGone = (prev, next) => key => !(key in next);
 
 function updateDom(dom, prevProps, nextProps) {
-  // Remove old or changed event listeners
+  //  移除 alternate 上的事件监听
+  // TODO 优化这里逻辑，可以直接判断是否是元素事件 props
   Object.keys(prevProps)
     .filter(isEvent)
     .filter(key => !(key in nextProps) || isNew(prevProps, nextProps)(key))
@@ -91,16 +97,8 @@ function updateDom(dom, prevProps, nextProps) {
       dom.removeEventListener(eventType, prevProps[name]);
     });
 
-  // Add event listeners
-  Object.keys(nextProps)
-    .filter(isEvent)
-    .filter(isNew(prevProps, nextProps))
-    .forEach(name => {
-      const eventType = name.toLowerCase().substring(2);
-      dom.addEventListener(eventType, nextProps[name]);
-    });
-
   // Remove old properties
+  // TODO 使用 removeAttribute setAttribute
   Object.keys(prevProps)
     .filter(isProperty)
     .filter(isGone(prevProps, nextProps))
@@ -112,6 +110,14 @@ function updateDom(dom, prevProps, nextProps) {
     .filter(isNew(prevProps, nextProps))
     .forEach(name => dom[name] = nextProps[name]);
 
+  // 增加事件监听
+  Object.keys(nextProps)
+    .filter(isEvent)
+    .filter(isNew(prevProps, nextProps))
+    .forEach(name => {
+      const eventType = name.toLowerCase().substring(2);
+      dom.addEventListener(eventType, nextProps[name]);
+    });
 
 }
 
@@ -127,18 +133,18 @@ function commitWork(fiber) {
   if (!fiber) {
     return;
   }
-  const domParent = fiber.parent.dom;
+  const domParent = fiber.parent.stateNode;
 
-  if (fiber.effectTag === 'PLACEMENT' && fiber.dom !== null) {
-    domParent.appendChild(fiber.dom);
-  } else if (fiber.effectTag === 'UPDATE' && fiber.dom !== null) {
+  if (fiber.effectTag === 'PLACEMENT' && fiber.stateNode !== null) {
+    domParent.appendChild(fiber.stateNode);
+  } else if (fiber.effectTag === 'UPDATE' && fiber.stateNode !== null) {
     updateDom(
-      fiber.dom,
+      fiber.stateNode,
       fiber.alternate.props,
       fiber.props,
     );
   } else if (fiber.effectTag === 'DELETION') {
-    domParent.removeChild(fiber.dom);
+    domParent.removeChild(fiber.stateNode);
   }
 
   commitWork(fiber.child);
@@ -148,7 +154,7 @@ function commitWork(fiber) {
 function render(element, container) {
   // 在渲染函数中，我们将nextUnitOfWork设置为fiber tree的根。
   wipRoot = {
-    dom: container,
+    stateNode: container,
     props: {
       children: [element],
     },
@@ -202,23 +208,11 @@ function performUnitOfWork(fiber) {
    * 3. 选择下一个工作单元
    */
 
-  if (!fiber.dom) {
-    fiber.dom = createDom(fiber);
+  if (!fiber.stateNode) {
+    fiber.stateNode = createDom(fiber);
   }
 
-  // if (fiber.parent) {
-  //   /**
-  //    * ?
-  //    * 每次处理元素时，我们都会向DOM添加一个新节点。
-  //    * 而且，在完成渲染整个树之前，浏览器可能会中断我们的工作。
-  //    * 在这种情况下，用户将看到不完整的UI。
-  //    */
-  //   fiber.parent.dom.appendChild(fiber.dom);
-  // }
-
-  const elements = fiber.props.children;
-
-  reconcileChildren(fiber, elements);
+  reconcileChildren(fiber, fiber.props.children);
 
   /**
    * 渲染顺序：
@@ -241,29 +235,29 @@ function performUnitOfWork(fiber) {
   }
 }
 
-function reconcileChildren(wipFiber, elements) {
+function reconcileChildren(fiber, children) {
   let index = 0;
-  let oldFiber = wipFiber.alternate && wipFiber.alternate.child;
+  let oldFiber = fiber.alternate && fiber.alternate.child;
   let prevSibling = null;
 
   while (
-    index < elements.length ||
+    index < children.length ||
     oldFiber !== null
   ) {
-    const element = elements[index];
+      console.log('fiber: ', fiber);
+    const element = children[index];
     let newFiber = null;
 
     const sameType = oldFiber && element && element.type === oldFiber.type;
 
     if (sameType) {
       // 如果旧的fiber和新的元素具有相同的类型，我们可以保留DOM节点并仅使用新的道具进行更新
-      // update the node
 
       newFiber = {
         type: oldFiber.type,
         props: element.props,
-        dom: oldFiber.dom,
-        parent: wipFiber,
+        stateNode: oldFiber.stateNode,
+        parent: fiber,
         alternate: oldFiber,
         effectTag: 'UPDATE',
       };
@@ -271,13 +265,12 @@ function reconcileChildren(wipFiber, elements) {
 
     if (element && !sameType) {
       // 如果类型不同并且有一个新元素，则意味着我们需要创建一个新的DOM节点
-      // add this node
 
       newFiber = {
         type: element.type,
         props: element.props,
-        dom: null,
-        parent: wipFiber,
+        stateNode: null,
+        parent: fiber,
         alternate: null,
         effectTag: 'PLACEMENT',
       }
@@ -296,7 +289,7 @@ function reconcileChildren(wipFiber, elements) {
     }
 
     if (index === 0) {
-      wipFiber.child = newFiber;
+      fiber.child = newFiber;
     } else if (element) {
       prevSibling.sibling = newFiber;
     }
@@ -352,14 +345,15 @@ const container = document.getElementById("root");
 // FazReact.render(element, container);
 
 const updateValue = e => {
+  console.log('e.target.value: ', e.target.value);
   rerender(e.target.value)
 }
 
 const rerender = value => {
   const element = (
     <div>
-      <input onInput={updateValue} value={value} />
-      <h2>Hello {value}</h2>
+      <input onInput={updateValue} value={value} role="input"/>
+      <h2>!Hello {value}</h2>
     </div>
   )
   FazReact.render(element, container)
